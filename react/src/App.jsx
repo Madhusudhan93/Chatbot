@@ -4,22 +4,24 @@ import "./App.css";
 function App() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [messages, setMessages] = useState([
     {
       sender: "bot",
       text: "Hi Madhu! How can I help you?",
     },
   ]);
+
   const chatEndRef = useRef(null);
 
-  async function sendMessage() {
-    if (!message.trim()) return;
+  async function sendMessage(voiceText = null)  {
+   const currentMessage = voiceText || message;
 
-    const currentMessage = message;
+if (!currentMessage.trim()) return;
 
-    // Store user message
-    setMessages((prevMessages) => [
-      ...prevMessages,
+    // Show user message
+    setMessages((prev) => [
+      ...prev,
       {
         sender: "user",
         text: currentMessage,
@@ -40,19 +42,14 @@ function App() {
         }),
       });
 
-      console.log("Response Status:", response.status);
-
       if (!response.ok) {
         throw new Error(`HTTP Error: ${response.status}`);
       }
 
       const data = await response.json();
 
-      console.log("Response Data:", data);
-
-      // Store AI reply
-      setMessages((prevMessages) => [
-        ...prevMessages,
+      setMessages((prev) => [
+        ...prev,
         {
           sender: "bot",
           text: data.reply,
@@ -61,8 +58,8 @@ function App() {
     } catch (error) {
       console.error(error);
 
-      setMessages((prevMessages) => [
-        ...prevMessages,
+      setMessages((prev) => [
+        ...prev,
         {
           sender: "bot",
           text: "❌ Error connecting to AI.",
@@ -72,19 +69,78 @@ function App() {
       setLoading(false);
     }
   }
+
   function clearChat() {
-  setMessages([
-    {
-      sender: "bot",
-      text: "Hi Madhu! How can I help you?",
-    },
-  ]);
-}
-useEffect(() => {
-  chatEndRef.current?.scrollIntoView({
-    behavior: "smooth",
-  });
-}, [messages]);
+    setMessages([
+      {
+        sender: "bot",
+        text: "Hi Madhu! How can I help you?",
+      },
+    ]);
+  }
+
+  function copyMessage(text) {
+    navigator.clipboard.writeText(text);
+    alert("✅ Copied!");
+  }
+
+  function startListening() {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Speech Recognition is not supported.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      console.log("🎤 Listening...");
+    };
+
+    recognition.onresult = (event) => {
+  const transcript = event.results[0][0].transcript;
+
+  console.log("🎤 You said:", transcript);
+
+  // Show recognized speech in the input
+  setMessage(transcript);
+
+  // Automatically send it
+  setTimeout(() => {
+    sendMessage(transcript);
+  }, 300);
+};
+
+    recognition.onerror = (event) => {
+      if (event.error === "aborted") {
+        console.log("Recognition aborted.");
+      } else if (event.error === "no-speech") {
+        alert("Please speak immediately after clicking the microphone.");
+      } else {
+        console.error(event.error);
+      }
+    };
+
+    recognition.onend = () => {
+      console.log("Recognition ended.");
+    };
+
+    recognition.start();
+  }
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   return (
     <div className="container">
       <h1>🤖 Madhu AI ChatBot</h1>
@@ -95,10 +151,39 @@ useEffect(() => {
             key={index}
             className={msg.sender === "user" ? "user" : "bot"}
           >
-            <strong>{msg.sender === "user" ? "You" : "AI"}:</strong>{" "}
+            <span
+              style={{
+                fontSize: "22px",
+                marginRight: "8px",
+              }}
+            >
+              {msg.sender === "user" ? "👤" : "🤖"}
+            </span>
+
+            <strong>
+              {msg.sender === "user" ? "You" : "AI"}:
+            </strong>
+
+            <br />
+
             {msg.text}
+
+            {msg.sender === "bot" && (
+              <div style={{ marginTop: "10px" }}>
+                <button
+                  onClick={() => copyMessage(msg.text)}
+                  style={{
+                    fontSize: "12px",
+                    padding: "5px 10px",
+                  }}
+                >
+                  📋 Copy
+                </button>
+              </div>
+            )}
           </div>
         ))}
+
         <div ref={chatEndRef}></div>
       </div>
 
@@ -115,15 +200,27 @@ useEffect(() => {
           }}
         />
 
-      <div style={{ display: "flex", gap: "10px" }}>
-  <button onClick={sendMessage} disabled={loading}>
-    {loading ? "Thinking..." : "Send"}
-  </button>
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+          }}
+        >
+          <button
+            onClick={sendMessage}
+            disabled={loading}
+          >
+            {loading ? "Thinking..." : "Send"}
+          </button>
 
-  <button onClick={clearChat}>
-    Clear Chat
-  </button>
-</div>
+          <button onClick={startListening}>
+            🎤
+          </button>
+
+          <button onClick={clearChat}>
+            🗑️
+          </button>
+        </div>
       </div>
     </div>
   );
